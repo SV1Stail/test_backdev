@@ -1,0 +1,34 @@
+/project-root
+│
+├── /src
+│   ├── /graph            # Папка для схем и резолверов
+│   │   ├── schema.graphqls  # GraphQL схема
+│   │   ├── /models
+│   │   │   └── models.go # Определение структур и моделей данных
+│   │   ├── generated.go
+│   │   ├── help_graph.go
+│   │   ├── resolver.go
+│   │   ├── resolvers_test.go # тесты для паекта graph
+│   │   └── schema.resolvers.go
+│   │
+│   ├── /db           # Работа с базой данных
+│   │   └── db.go
+│   │
+│   ├── Dockerfile
+│   ├── main.go             # Точка входа в приложение
+│   ├── gqlgen.yml  # Конфигурационные файлы проекта
+│   ├──server.go #точка входа main
+│   ├── go.mod                  # Файл зависимостей Go
+│   └── go.sum 
+│
+├── /material
+│   ├── db.sql
+│   ├── projectTree.txt
+│   └── Тестовое_задание_Стажировка.
+│
+├── documentation.html  # html страница с документацией к коду
+├── docker-compose.yml
+└── readme.md
+go clean -modcache
+go install github.com/99designs/gqlgen@latest
+export PATH=$PATH:$(go env GOPATH)/bin
