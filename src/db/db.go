@@ -12,7 +12,7 @@ var pool *pgxpool.Pool
 
 const DB_USER string = "user_db"
 const DB_PASSWORD string = "1234"
-const DB_PORT string = "5433"
+const DB_PORT string = "5432"
 const DB_NAME string = "backdev"
 const DB_HOST string = "localhost"
 
