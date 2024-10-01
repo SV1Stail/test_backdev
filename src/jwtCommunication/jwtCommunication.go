@@ -1,6 +1,7 @@
 package jwtcommunication
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -124,4 +127,30 @@ func (u *UserInfo) IsMapClaimsValid(mapka jwt.MapClaims) error {
 		return fmt.Errorf("%v", err)
 	}
 	return nil
+}
+
+// get refresh hash from db
+func (u *UserInfo) GetRefreshHash(ctx context.Context, pool *pgxpool.Pool) (string, error) {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Release()
+	var rHash string
+	err = conn.QueryRow(ctx, "SELECT refresh_token_hash FROM refresh_tokens WHERE token_id=$1 AND user_id=$2", u.TokenID, u.UserID).Scan(&rHash)
+	if err == pgx.ErrNoRows {
+		return "", fmt.Errorf("no rows with this user_id and post_id")
+	} else if err != nil {
+		return "", err
+	}
+	return rHash, nil
+}
+
+func (u *UserInfo) DeleteUsedRefreshHash(ctx context.Context, pool *pgxpool.Pool) error {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+	_, err = conn.Exec(ctx, "DELETE FROM refresh_tokens ")
 }

@@ -1,13 +1,17 @@
 package second
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/SV1Stail/test_backdev/db"
 	jwtcommunication "github.com/SV1Stail/test_backdev/jwtCommunication"
 	"github.com/dgrijalva/jwt-go"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type TokenValid interface {
@@ -61,6 +65,11 @@ func HandlerSecond(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if (tokenInfo.Expires_at).Unix() < time.Now().Unix() {
+		http.Error(w, "access token expired", http.StatusUnauthorized)
+		return
+	}
+
 	curIP, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		http.Error(w, "invalid ip addr", http.StatusInternalServerError)
@@ -68,6 +77,18 @@ func HandlerSecond(w http.ResponseWriter, r *http.Request) {
 	}
 	if curIP != tokenInfo.UserIP {
 		fmt.Printf("ANOTHER USER IP for user %s", tokenInfo.UserID)
+	}
+	pool := db.GetPool()
+	ctx := context.Background()
+	rHash, err := tokenInfo.GetRefreshHash(ctx, pool)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("refresh token not found  %v", err), http.StatusUnauthorized)
+		return
+	}
+	err = bcrypt.CompareHashAndPassword([]byte(rHash), []byte(tokens.RToken))
+	if err != nil {
+		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
+		return
 	}
 
 }
