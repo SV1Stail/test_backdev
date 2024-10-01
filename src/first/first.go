@@ -2,6 +2,7 @@ package first
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -21,7 +22,7 @@ func HandlerFirst(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if ok, err := user.IsValid(); !ok {
+	if err := user.IsValid(); err != nil {
 		http.Error(w, fmt.Sprintf("error: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -46,36 +47,18 @@ func HandlerFirst(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := context.Background()
-	saveRefHash(ctx, &user)
-
-	resp := fmt.Sprintf(`{"access_token": "%s", "refresh_token": "%s"}`, aToken, rToken)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(resp))
-}
-
-// save user info in db's table
-func saveRefHash(ctx context.Context, user *jwtcommunication.UserInfo) error {
 	pool := db.GetPool()
-	ta, err := pool.Begin(ctx)
-	if err != nil {
-		return err
+	if err := user.SaveRefHash(ctx, pool); err != nil {
+		http.Error(w, fmt.Sprintf("cant insert into db: %v", err), http.StatusInternalServerError)
+		return
 	}
 
-	defer func() {
-		if err != nil {
-			ta.Rollback(ctx)
-		}
-	}()
-
-	_, err = ta.Exec(ctx, "INSERT INTO refresh_tokens (user_id, refresh_token_hash, ip_address, created_at, expires_at,token_id) VALUES ($1, $2, $3, $4, $5, $6)",
-		user.UserID, user.HashRefreshToken, user.UserIP, user.Created_at, user.Expires_at, user.TokenID)
-	if err != nil {
-		return err
+	resp := map[string]string{
+		"access_token":  aToken,
+		"refresh_token": rToken,
 	}
-	err = ta.Commit(ctx)
-	if err != nil {
-		return err
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "cant write resp", http.StatusInternalServerError)
 	}
-
-	return nil
 }

@@ -14,5 +14,3 @@ CREATE TABLE refresh_tokens (
     UNIQUE(user_id)
 );
 
-
-

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net"
 	"sync"
@@ -16,17 +17,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 var jwtSecret = []byte("your-secret-key")
-
-type User interface {
-	isValid() (bool, error)
-}
 
 type UserInfo struct {
 	UserID           string
 	UserIP           string
-	Created_at       time.Time
-	Expires_at       time.Time
+	CreatedAt        time.Time
+	ExpiresAt        time.Time
 	TokenID          string
 	HashRefreshToken string
 	mu               sync.Mutex
@@ -34,6 +32,34 @@ type UserInfo struct {
 
 func GetSecret() []byte {
 	return jwtSecret
+}
+
+// save user info in db's table
+func (user *UserInfo) SaveRefHash(ctx context.Context, pool *pgxpool.Pool) error {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	ta, err := conn.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer ta.Rollback(ctx)
+
+	_, err = ta.Exec(ctx, "INSERT INTO refresh_tokens (user_id, refresh_token_hash, ip_address, created_at, expires_at,token_id) VALUES ($1, $2, $3, $4, $5, $6)",
+		user.UserID, user.HashRefreshToken, user.UserIP, user.CreatedAt, user.ExpiresAt, user.TokenID)
+	if err != nil {
+		return err
+	}
+	err = ta.Commit(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // generate Refrash token
@@ -75,8 +101,8 @@ func AccessToken(user *UserInfo) (string, error) {
 
 	user.mu.Lock()
 	user.TokenID = tokenID
-	user.Expires_at = timeNow.Add(time.Minute * 15)
-	user.Created_at = timeNow
+	user.ExpiresAt = timeNow.Add(time.Minute * 15)
+	user.CreatedAt = timeNow
 	user.mu.Unlock()
 
 	return token.SignedString(jwtSecret)
@@ -84,19 +110,19 @@ func AccessToken(user *UserInfo) (string, error) {
 
 // validation UserInfo.UserID, UserInfo.UserIP
 // return: all good true,nil
-func (user *UserInfo) IsValid() (bool, error) {
+func (user *UserInfo) IsValid() error {
 	if user.UserID == "" {
-		return false, fmt.Errorf("user_id is empty")
+		return fmt.Errorf("user_id is empty")
 	}
 	_, err := uuid.Parse(user.UserID)
 	if err != nil {
-		return false, err
+		return err
 	}
 	ip := net.ParseIP(user.UserIP)
 	if ip == nil {
-		return false, fmt.Errorf("invalid IP address")
+		return fmt.Errorf("invalid IP address")
 	}
-	return true, nil
+	return nil
 }
 
 func (u *UserInfo) IsMapClaimsValid(mapka jwt.MapClaims) error {
@@ -113,17 +139,47 @@ func (u *UserInfo) IsMapClaimsValid(mapka jwt.MapClaims) error {
 	if !ok {
 		return fmt.Errorf("token_id not found in access token")
 	}
-	exp, ok := mapka["exp"].(float64)
+	exp, ok := mapka["exp"]
 	if !ok {
-		return fmt.Errorf("expires_at time not found in access token")
+		return fmt.Errorf("ExpiresAt time not found in access token")
 	}
-	u.Expires_at = time.Unix(int64(exp), 0)
-	cre, ok := mapka["iat"].(float64)
+	var Val int64
+	switch v := exp.(type) {
+	case float64:
+		Val = int64(v)
+	case int64:
+		Val = v
+	case json.Number:
+		var err error
+		Val, err = v.Int64()
+		if err != nil {
+			return fmt.Errorf("cant conver exp %v", err)
+		}
+	default:
+		return fmt.Errorf("invalid exp type")
+	}
+	u.ExpiresAt = time.Unix(Val, 0)
+	cre, ok := mapka["iat"]
 	if !ok {
 		return fmt.Errorf("ereated_at time not found in access token")
 	}
-	u.Created_at = time.Unix(int64(cre), 0)
-	if ok, err := u.IsValid(); !ok || err != nil {
+	switch v := cre.(type) {
+	case float64:
+		Val = int64(v)
+	case int64:
+		Val = v
+	case json.Number:
+		var err error
+		Val, err = v.Int64()
+		if err != nil {
+			return fmt.Errorf("cant convert cre %v", err)
+		}
+	default:
+		return fmt.Errorf("invalid cre type")
+	}
+
+	u.CreatedAt = time.Unix(Val, 0)
+	if err := u.IsValid(); err != nil {
 		return fmt.Errorf("%v", err)
 	}
 	return nil
@@ -139,7 +195,8 @@ func (u *UserInfo) GetRefreshHash(ctx context.Context, pool *pgxpool.Pool) (stri
 	var rHash string
 	err = conn.QueryRow(ctx, "SELECT refresh_token_hash FROM refresh_tokens WHERE token_id=$1 AND user_id=$2", u.TokenID, u.UserID).Scan(&rHash)
 	if err == pgx.ErrNoRows {
-		return "", fmt.Errorf("no rows with this user_id and post_id")
+		return "", fmt.Errorf("no rows with this user_id and token_id")
+
 	} else if err != nil {
 		return "", err
 	}
@@ -152,5 +209,19 @@ func (u *UserInfo) DeleteUsedRefreshHash(ctx context.Context, pool *pgxpool.Pool
 		return err
 	}
 	defer conn.Release()
-	_, err = conn.Exec(ctx, "DELETE FROM refresh_tokens ")
+	ta, err := conn.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer ta.Rollback(ctx)
+
+	_, err = ta.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id=$1 AND token_id=$2", u.UserID, u.TokenID)
+	if err != nil {
+		return err
+	}
+	err = ta.Commit(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
 }

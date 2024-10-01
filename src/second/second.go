@@ -2,10 +2,12 @@ package second
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/SV1Stail/test_backdev/db"
@@ -13,21 +15,6 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
 )
-
-type TokenValid interface {
-	IsEmpty() (bool, error)
-}
-
-// if one of tokens is empty return true
-func (t Tokens) IsEmpty() (bool, error) {
-	if t.AToken == "" {
-		return true, fmt.Errorf("empty access token")
-	}
-	if t.RToken == "" {
-		return true, fmt.Errorf("empty refresh token")
-	}
-	return false, nil
-}
 
 type Tokens struct {
 	AToken string
@@ -38,7 +25,7 @@ func HandlerSecond(w http.ResponseWriter, r *http.Request) {
 	var tokens Tokens
 	tokens.AToken = r.Header.Get("Authorization")
 	tokens.RToken = r.FormValue("refresh_token")
-	if ok, err := tokens.IsEmpty(); ok {
+	if err := tokens.IsEmpty(); err != nil {
 		http.Error(w, fmt.Sprintf("error: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -54,18 +41,20 @@ func HandlerSecond(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid access token", http.StatusUnauthorized)
 		return
 	}
+
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		http.Error(w, "invalid access token claims", http.StatusUnauthorized)
 		return
 	}
+
 	var tokenInfo jwtcommunication.UserInfo
 	if err := tokenInfo.IsMapClaimsValid(claims); err != nil {
 		http.Error(w, fmt.Sprintf("%v", err), http.StatusUnauthorized)
 		return
 	}
 
-	if (tokenInfo.Expires_at).Unix() < time.Now().Unix() {
+	if (tokenInfo.ExpiresAt).Unix() < time.Now().Unix() {
 		http.Error(w, "access token expired", http.StatusUnauthorized)
 		return
 	}
@@ -76,19 +65,72 @@ func HandlerSecond(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if curIP != tokenInfo.UserIP {
-		fmt.Printf("ANOTHER USER IP for user %s", tokenInfo.UserID)
+		sendMail(&tokenInfo, curIP)
 	}
+
 	pool := db.GetPool()
 	ctx := context.Background()
+
 	rHash, err := tokenInfo.GetRefreshHash(ctx, pool)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("refresh token not found  %v", err), http.StatusUnauthorized)
 		return
 	}
+
 	err = bcrypt.CompareHashAndPassword([]byte(rHash), []byte(tokens.RToken))
 	if err != nil {
 		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
 		return
 	}
 
+	if err := tokenInfo.DeleteUsedRefreshHash(ctx, pool); err != nil {
+		http.Error(w, fmt.Sprintf("cant delete rToken %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	tokenInfo.UserIP = curIP
+	var wg sync.WaitGroup
+
+	var aToken, rToken string
+	var Aerr, Rerr error
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		aToken, Aerr = jwtcommunication.AccessToken(&tokenInfo)
+	}()
+	go func() {
+		defer wg.Done()
+		rToken, Rerr = jwtcommunication.RefreshToken(&tokenInfo)
+	}()
+	wg.Wait()
+	if Aerr != nil || Rerr != nil {
+		http.Error(w, "can not create aToken or rToken", http.StatusInternalServerError)
+		return
+	}
+
+	resp := map[string]string{
+		"access_token":  aToken,
+		"refresh_token": rToken,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "cant write resp", http.StatusInternalServerError)
+	}
+}
+
+// send mail if ip was changed
+func sendMail(user *jwtcommunication.UserInfo, curIP string) {
+	fmt.Printf("for user %s ip was changed from %s on %s ", user.UserID, user.UserIP, curIP)
+}
+
+// if one of tokens is empty return true
+func (t Tokens) IsEmpty() error {
+	if t.AToken == "" {
+		return fmt.Errorf("empty access token")
+	}
+	if t.RToken == "" {
+		return fmt.Errorf("empty refresh token")
+	}
+	return nil
 }
