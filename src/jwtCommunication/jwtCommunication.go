@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -17,8 +18,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
-var jwtSecret = []byte("your-secret-key")
+var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+
+// var jwtSecret = []byte("your-secret-key")
 
 type UserInfo struct {
 	UserID           string

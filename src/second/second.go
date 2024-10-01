@@ -108,7 +108,10 @@ func HandlerSecond(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "can not create aToken or rToken", http.StatusInternalServerError)
 		return
 	}
-
+	if err = tokenInfo.SaveRefHash(ctx, pool); err != nil {
+		http.Error(w, fmt.Sprintf("cant save in refresh token in db: %v", err), http.StatusInternalServerError)
+		return
+	}
 	resp := map[string]string{
 		"access_token":  aToken,
 		"refresh_token": rToken,

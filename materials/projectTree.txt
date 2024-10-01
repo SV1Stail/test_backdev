@@ -1,34 +1,40 @@
 /project-root
-│
+│   
 ├── /src
-│   ├── /graph            # Папка для схем и резолверов
-│   │   ├── schema.graphqls  # GraphQL схема
-│   │   ├── /models
-│   │   │   └── models.go # Определение структур и моделей данных
-│   │   ├── generated.go
-│   │   ├── help_graph.go
-│   │   ├── resolver.go
-│   │   ├── resolvers_test.go # тесты для паекта graph
-│   │   └── schema.resolvers.go
+│   ├── /bash
+│   │   ├── init.sql # таблица для БД
+│   │   └── main.sh # автоматизация создания таблицы
+│   │   
+│   ├── /first            #первый путь
+│   │   └── first.go  
+│   │
+│   ├── /jwtCommunication            # вспомогательные функции
+│   │   ├── jwtCommunication.go  
+│   │   └── jwtCommunication_test.go
 │   │
 │   ├── /db           # Работа с базой данных
 │   │   └── db.go
 │   │
+│   ├── /second            #второй путь
+│   │   ├── second_test.go  
+│   │   └── second.go 
+│   │
+│   ├── /third            # позволяет удалить все записи с истекшими refrash хешами
+│   │   └── third.go 
+│   │
 │   ├── Dockerfile
-│   ├── main.go             # Точка входа в приложение
+│   ├── main.go             # точка входа main
 │   ├── gqlgen.yml  # Конфигурационные файлы проекта
-│   ├──server.go #точка входа main
 │   ├── go.mod                  # Файл зависимостей Go
 │   └── go.sum 
 │
 ├── /material
 │   ├── db.sql
-│   ├── projectTree.txt
-│   └── Тестовое_задание_Стажировка.
+│   └── projectTree.txt
 │
 ├── documentation.html  # html страница с документацией к коду
 ├── docker-compose.yml
-└── readme.md
+└── readme.md # Тестовое задание
 go clean -modcache
 go install github.com/99designs/gqlgen@latest
 export PATH=$PATH:$(go env GOPATH)/bin
