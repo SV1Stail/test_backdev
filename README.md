@@ -7,11 +7,13 @@ docker compose up
 Через Postman:
 ### Path one
     * тип запроса GET 
+    * запрос http://localhost:8080/api/get_token
     * в Params: Key "user_id" Value валидный uuid например "123e4567-e89b-12d3-a456-426614174001"
     * сделать запрос и записать полученные токены для path  two
 
 ### Path two
     * тип запроса POST
+    * запрос http://localhost:8080/api/refresh_token
     * Header Key "Authorization" Value "Bearer <access token из path one>"
     * Body Key "refresh_token" Value "<refresh token из path one>"
     * сделать запрос и записать полученные токены 
