@@ -1,8 +1,3 @@
-sudo su - postgres -c "createdb backdev"
-grant all privileges on database backdev to user_db;
-psql -U user_db -d backdev -h localhost
-passw 1234
-
 CREATE TABLE refresh_tokens (
     id SERIAL PRIMARY KEY, 
     user_id UUID NOT NULL,
@@ -13,4 +8,3 @@ CREATE TABLE refresh_tokens (
     expires_at TIMESTAMP WITHOUT TIME ZONE,
     UNIQUE(user_id)
 );
-
