@@ -19,7 +19,6 @@ services:
       - DB_PORT=5432
       - DB_NAME=backdev
       - JWT_SECRET=secret_string_SV1Stail
-      # - DATABASE_URL=postgres://user_db:1234@db:5433/backdev?sslmode=disable
       
   db:
     image: postgres:14-alpine
@@ -29,7 +28,7 @@ services:
       POSTGRES_PASSWORD: 1234 
       POSTGRES_DB: backdev            
     ports:
-      - "5433:5432"
+      - "5430:5432"
     networks:
       - app-network
     volumes:
@@ -40,13 +39,7 @@ services:
       dockerfile: Dockerfile
       target: builder  
     command: go test ./... -v
-    # depends_on:
-    #   - db
-    # networks:
-    #   - app-network
-    # environment:
-    #   - DATABASE_URL=postgres://user_db:1234@db:5433/backdev?sslmode=disable
-      
+
 volumes:
   db_data:
 

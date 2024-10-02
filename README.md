@@ -1,5 +1,22 @@
 # test_backdev
 
+## Запуск
+docker compose up
+будет запущен контейнер и тесты. 
+При запущенном контейнере по адресу http://localhost:8080/api можно проверить работу системы.
+Через Postman:
+### Path one
+    * тип запроса GET 
+    * в Params: Key "user_id" Value валидный uuid например "123e4567-e89b-12d3-a456-426614174001"
+    * сделать запрос и записать полученные токены для path  two
+
+### Path two
+    * тип запроса POST
+    * Header Key "Authorization" Value "Bearer <access token из path one>"
+    * Body Key "refresh_token" Value "<refresh token из path one>"
+    * сделать запрос и записать полученные токены 
+    * повторить path two с новыми токенами и получить снова новые токены
+
 **Используемые технологии:**
 
 - Go

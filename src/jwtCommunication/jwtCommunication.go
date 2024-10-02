@@ -127,6 +127,7 @@ func (user *UserInfo) IsValid() error {
 	return nil
 }
 
+// put data from access token into struct to generate new tokens
 func (u *UserInfo) IsMapClaimsValid(mapka jwt.MapClaims) error {
 	var ok bool
 	u.UserID, ok = mapka["user_id"].(string)
@@ -205,6 +206,7 @@ func (u *UserInfo) GetRefreshHash(ctx context.Context, pool *pgxpool.Pool) (stri
 	return rHash, nil
 }
 
+// delete data from db if refresh hash was used
 func (u *UserInfo) DeleteUsedRefreshHash(ctx context.Context, pool *pgxpool.Pool) error {
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
